@@ -1,29 +1,28 @@
 #!/bin/bash
-# Build llama.cpp binary
+# Build llama.cpp using CMake (new build system)
 
 echo "=========================================="
-echo "🔨 Building llama.cpp"
+echo "🔨 Building llama.cpp (CMake)"
 echo "=========================================="
 
 cd ~/llama.cpp
 
-# Check if already built
-if [ -f "llama-cli" ]; then
-    echo "✅ llama-cli already exists!"
-    ls -la llama-cli
-    exit 0
-fi
+# Create build directory
+mkdir -p build
+cd build
+
+# Configure with CMake
+cmake .. -DCMAKE_BUILD_TYPE=Release
 
 # Build
-echo "Building... (this takes 5-10 minutes)"
-make -j$(nproc)
+cmake --build . --config Release -j$(nproc)
 
-# Check result
-if [ -f "llama-cli" ]; then
-    echo "✅ Build successful!"
-    ls -la llama-cli
+# Check if built
+if [ -f "bin/llama-cli" ]; then
+    echo "✅ Built successfully!"
+    echo "Location: ~/llama.cpp/build/bin/llama-cli"
+    ls -la bin/llama-cli
 else
-    echo "❌ Build failed. Trying alternative..."
-    # Try basic build
-    make
+    echo "Checking for alternative locations..."
+    find ~/llama.cpp/build -name "llama-cli" 2>/dev/null
 fi
