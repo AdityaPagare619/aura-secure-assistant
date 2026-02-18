@@ -1,0 +1,19 @@
+# Aura Configuration
+
+telegram:
+  bot_token: "YOUR_BOT_TOKEN_HERE"
+
+llm:
+  provider: "ollama" # or "mock"
+  model_name: "sarvam-1" # or "llama3"
+  api_url: "http://localhost:11434"
+
+agent:
+  max_history: 10
+  max_iterations: 5
+
+# Security Policy
+security:
+  allow_shell: false
+  allow_web: false
+  allow_banking: true
