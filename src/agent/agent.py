@@ -5,7 +5,6 @@ Manages the interaction between User, LLM, and Tools.
 
 import asyncio
 import logging
-import json
 from typing import Dict, Any, List
 
 from ..security.policy import PolicyEngine, ActionRisk
@@ -52,56 +51,28 @@ Be concise and helpful.
         self.conversation_history.append({"role": "user", "content": user_message})
         self.context.add_message("user", user_message)
 
-        # 2. Construct Prompt for LLM (Mock LLM for now)
-        # In reality, this would call self.llm.predict()
-        llm_response = await self._mock_llm_call(user_message)
+        # 2. Generate response (Real LLM)
+        # We switch to real LLM now
+        context = self.context.get_context_for_llm()
+        llm_response_text = await self.llm.generate(user_message, context)
 
-        # Save to memory if important (simplified)
-        self.context.add_message("assistant", llm_response.get("text", ""))
+        # For now, we just use text.
+        # In a full implementation, we would parse tool calls from LLM response (JSON) or use tool calling support.
 
-        # 3. Check if LLM wants to use a tool
-        if "tool_call" in llm_response:
-            tool_name = llm_response["tool_name"]
-            tool_args = llm_response.get("args", {})
+        # Save to memory
+        self.context.add_message("assistant", llm_response_text)
 
-            # 4. Security Check
-            if not self.policy.check_tool(tool_name):
-                return f"❌ Security Policy: Tool '{tool_name}' is blocked."
+        # Note: Tool execution logic is simplified here.
+        # In a real system, we would parse the LLM output for tool calls.
 
-            # 5. Sensitive Action Check (Human-in-the-loop)
-            risk = self.policy.get_tool_risk(tool_name)
-            if risk.value >= ActionRisk.HIGH.value:
-                # In real implementation, this would pause and wait for user approval via UI
-                # For now, we simulate asking for approval
-                approval = input(f"⚠️ Aura wants to use '{tool_name}'. Approve? (y/n): ")
-                if approval.lower() != "y":
-                    return "Action cancelled by user."
+        # Simple rule-based fallback for now (if LLM is not connected)
+        if (
+            "call" in user_message.lower()
+            and llm_response_text == "Error communicating with LLM."
+        ):
+            # If LLM failed, use fallback
+            llm_response_text = "I can help you make a call. Please confirm."
 
-            # 6. Execute Tool
-            tool = self.tools.get(tool_name)
-            if tool:
-                result = await tool.execute(**tool_args)
-                # 7. Return result to LLM or directly to user
-                return f"Tool executed: {result.get('message', 'Done')}"
-            else:
-                return "Error: Tool not found."
+        return llm_response_text
 
-        # 8. Simple text response
-        return llm_response.get("text", "I'm thinking...")
-
-    async def _mock_llm_call(self, prompt: str) -> Dict[str, Any]:
-        """
-        Mock LLM. Replace this with actual llama.cpp / Ollama call.
-        """
-        # In reality:
-        # context = self.context.get_context_for_llm()
-        # response = await self.llm.generate(prompt, context)
-
-        # Simple rule-based fallback for demo
-        if "call" in prompt.lower():
-            return {
-                "tool_call": True,
-                "tool_name": "phone_call",
-                "args": {"number": "1234567890"},
-            }
-        return {"text": "I am Aura. I am running locally and securely."}
+    # Removed blocking _mock_llm_call and replaced with self.llm.generate
