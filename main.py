@@ -50,8 +50,12 @@ def main():
     policy = PolicyEngine()
     tools = create_tools(config)
 
-    llm_provider = get_secret("LLM_PROVIDER", config.get("llm"), "mock")
-    agent = AuraAgent(tools, policy, llm_provider=llm_provider)
+    # Get LLM settings
+    llm_config = config.get("llm", {})
+    llm_provider = get_secret("LLM_PROVIDER", llm_config, "mock")
+    llm_model = get_secret("LLM_MODEL", llm_config, "sarvam-1")
+    
+    agent = AuraAgent(tools, policy, llm_provider=llm_provider, llm_model=llm_model)
 
     bot_token = get_secret("TELEGRAM_BOT_TOKEN", config.get("telegram"))
     if not bot_token:
@@ -61,8 +65,6 @@ def main():
     bot = AuraBot(agent, bot_token)
 
     logger.info("🤖 Aura is running... (Press Ctrl+C to stop)")
-
-    # This blocks and runs the bot
     bot.run()
 
 
