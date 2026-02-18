@@ -12,6 +12,7 @@ from src.agent.agent import AuraAgent
 from src.security.policy import PolicyEngine
 from src.tools.base import Tool
 from src.tools.phone_tool import PhoneCallTool
+from src.tools.whatsapp_tool import WhatsAppTool
 from src.interface.telegram_bot import AuraBot
 
 logging.basicConfig(level=logging.INFO)
@@ -29,7 +30,9 @@ def create_tools(config):
     tools = []
     # Add Phone Tool
     tools.append(PhoneCallTool())
-    # Add more tools here (WhatsApp, Calendar, etc.)
+    # Add WhatsApp Tool
+    tools.append(WhatsAppTool())
+    # Add more tools here (Calendar, etc.)
     return tools
 
 
