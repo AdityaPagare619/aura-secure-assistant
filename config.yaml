@@ -4,8 +4,8 @@ telegram:
   bot_token: "7573691331:AAFTsne004fhKUgQQT6ydRVh6mazfkl7Ks0"
 
 llm:
-  provider: "llama-cpp"  # Use llama-cpp for Sarvam AI
-  model_name: "sarvam-1"  # Your Sarvam model file
+  provider: "mock"  # Change to "llama-cpp" or "ollama" after installing Sarvam
+  model_name: "sarvam-1"
 
 agent:
   max_history: 10
