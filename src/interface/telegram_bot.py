@@ -7,6 +7,8 @@ Supports Text and Voice Notes.
 import asyncio
 import logging
 import os
+import signal
+import sys
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -28,74 +30,93 @@ class AuraBot:
         self.token = token
         self.voice_handler = VoiceHandler()
         self.app = Application.builder().token(token).build()
-
-        # State for conversation mode
-        # If user sends voice, we might want to reply with voice?
-        # For now, let's default to text replies for simplicity and speed.
+        self.running = True
 
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "Hello! I am Aura. Your secure local assistant.\n"
             "You can send me text or voice messages.\n"
-            "I am running locally and securely."
+            "I am running locally and securely.\n\n"
+            "Commands:\n"
+            "/start - Start bot\n"
+            "/stop - Stop bot\n"
+            "/status - Check status"
+        )
+
+    async def stop_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Stop the bot - for security emergency stop"""
+        await update.message.reply_text("🛑 Stopping Aura Bot...")
+        self.running = False
+        await self.app.stop()
+        await update.message.reply_text("Aura Bot stopped. You can close Termux now.")
+        # Give time to send message then exit
+        await asyncio.sleep(1)
+        sys.exit(0)
+
+    async def status_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Check bot status"""
+        llm_status = "Unknown"
+        try:
+            if self.agent.llm.provider == "mock":
+                llm_status = "Mock Mode (Basic)"
+            elif self.agent.llm.provider == "llama-cpp":
+                llm_status = f"Sarvam AI ({self.agent.llm.model_name})"
+            elif self.agent.llm.provider == "ollama":
+                llm_status = f"Ollama ({self.agent.llm.model_name})"
+        except:
+            pass
+        
+        await update.message.reply_text(
+            f"🤖 Aura Status:\n"
+            f"- LLM: {llm_status}\n"
+            f"- Running: Yes\n"
+            f"- Security: Active"
         )
 
     async def handle_voice(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle incoming voice notes."""
+        if not self.running:
+            return
+            
         voice = update.message.voice
         if not voice:
             return
 
         logger.info(f"Received voice note from {update.effective_user.id}")
 
-        # Download the voice file
         file = await context.bot.get_file(voice.file_id)
         file_path = f"temp_{voice.file_id}.ogg"
         await file.download_to_drive(file_path)
 
-        # Convert to text (STT)
-        # Note: In a real scenario, we need ffmpeg to convert OGG to WAV for Whisper
-        # For now, assume the voice handler can handle it or we convert manually
         try:
             with open(file_path, "rb") as f:
                 text = await self.voice_handler.transcribe(f)
 
             logger.info(f"Transcribed: {text}")
-
-            # Process text through Agent
             response = await self.agent.process_message(text)
-
-            # Send text response
             await update.message.reply_text(response)
-
-            # Optional: Send Voice Response (TTS)
-            # if self.voice_mode_enabled:
-            #    audio = await self.voice_handler.speak(response)
-            #    await update.message.reply_voice(voice=audio)
 
         except Exception as e:
             logger.error(f"Error handling voice: {e}")
-            await update.message.reply_text(
-                "Sorry, I couldn't process that voice message."
-            )
+            await update.message.reply_text("Sorry, I couldn't process that voice message.")
         finally:
-            # Cleanup
             if os.path.exists(file_path):
                 os.remove(file_path)
 
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not self.running:
+            return
+            
         user_text = update.message.text
         logger.info(f"Received message: {user_text}")
-
-        # Process through Aura Agent
         response = await self.agent.process_message(user_text)
-
-        # Reply to user
         await update.message.reply_text(response)
 
     def run(self):
         # Register handlers
         self.app.add_handler(CommandHandler("start", self.start_command))
+        self.app.add_handler(CommandHandler("stop", self.stop_command))
+        self.app.add_handler(CommandHandler("status", self.status_command))
 
         # Voice handler - must be before text handler
         self.app.add_handler(MessageHandler(filters.VOICE, self.handle_voice))
@@ -107,4 +128,5 @@ class AuraBot:
 
         # Start polling
         print("Aura Bot is running...")
+        print("Send /start to your bot on Telegram!")
         self.app.run_polling(poll_interval=1.0)
