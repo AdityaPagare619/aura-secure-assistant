@@ -33,19 +33,18 @@ class LLMInterface:
         """Mock mode - simple responses without LLM."""
         prompt_lower = prompt.lower()
         
-        # Simple rule-based responses
         if "hello" in prompt_lower or "hi" in prompt_lower:
             return "Hello! I am Aura. Your secure local assistant. How can I help you today?"
         elif "who are you" in prompt_lower:
-            return "I am Aura, a secure personal assistant that runs locally on your device. I help with calls, messages, and more!"
+            return "I am Aura, a secure personal assistant that runs locally on your device!"
         elif "what can you do" in prompt_lower:
-            return "I can help you with:\n📞 Making phone calls\n💬 Sending WhatsApp messages\n📅 Managing calendar\n🔒 All while keeping your data secure and local!"
+            return "I can help you with:\n📞 Making phone calls\n💬 Sending WhatsApp messages\n🔒 All while keeping your data secure!"
         elif "call" in prompt_lower:
             return "I can help you make a call. Please confirm you want to make a call."
         elif "message" in prompt_lower or "whatsapp" in prompt_lower:
             return "I can send a WhatsApp message for you. Who do you want to send a message to?"
         else:
-            return "I understand your message. In full mode with Sarvam AI, I would give you a smarter response! For now, I'm in basic mode."
+            return "I understand. In full mode with Sarvam AI, I would give you a smarter response!"
 
     async def _ollama_generate(self, prompt: str, history: List[Dict]) -> str:
         """Call local Ollama API asynchronously."""
@@ -78,65 +77,80 @@ class LLMInterface:
         try:
             # Build prompt from history
             full_prompt = ""
+            system_prompt = """You are Aura, a secure local personal assistant. Be helpful, concise, and friendly."""
+            
             if history:
                 for msg in history:
                     role = msg.get("role", "user")
                     content = msg.get("content", "")
                     full_prompt += f"{role}: {content}\n"
-            full_prompt += f"user: {prompt}\nassistant:"
-
-            # Check if llama.cpp exists
-            llama_cmd = None
             
-            # Try common paths
-            paths = [
-                "llama-cli",
-                "./llama-cli",
-                "~/llama.cpp/llama-cli",
-                "$PREFIX/bin/llama-cli",
+            full_prompt = f"System: {system_prompt}\n\nUser: {prompt}\n\nAssistant:"
+
+            # Find llama-cli
+            llama_cmd = None
+            possible_paths = [
+                os.path.expanduser("~/llama.cpp/llama-cli"),
+                os.path.expanduser("~/llama.cpp/build/llama-cli"),
                 "/data/data/com.termux/files/home/llama.cpp/llama-cli",
-                "/data/data/com.termux/files/usr/bin/llama-cli"
+                "/data/data/com.termux/files/home/llama.cpp/build/llama-cli",
             ]
             
-            for path in paths:
-                expanded = os.path.expandvars(path)
-                if os.path.exists(expanded):
-                    llama_cmd = expanded
+            for path in possible_paths:
+                if os.path.exists(path):
+                    llama_cmd = path
                     break
-                # Also try which
-                result = subprocess.run(["which", expanded.replace("$PREFIX/", "")], 
-                                capture_output=True)
+
+            # Try which as fallback
+            if not llama_cmd:
+                result = subprocess.run(["which", "llama-cli"], capture_output=True, text=True)
                 if result.returncode == 0:
-                    llama_cmd = expanded
-                    break
+                    llama_cmd = result.stdout.strip()
 
             if not llama_cmd:
-                logger.warning("llama.cpp not found. Using mock mode.")
-                return "Sarvam AI not installed. Using basic mode.\n\nTo install Sarvam AI, run:\ncurl -sL https://raw.githubusercontent.com/AdityaPagare619/aura-secure-assistant/main/scripts/install_sarvam.sh | bash"
+                logger.warning("llama.cpp not found")
+                return "⚠️ Sarvam AI not found. Please run the install script again."
 
-            # Check if model exists
-            model_path = os.path.expandvars(f"$HOME/llama.cpp/models/{self.model_name}")
-            if not os.path.exists(model_path):
-                model_path = os.path.expandvars(f"$PREFIX/bin/{self.model_name}")
-            if not os.path.exists(model_path):
-                return f"Model '{self.model_name}' not found.\nPlace your Sarvam model at: ~/llama.cpp/models/{self.model_name}"
+            # Find model
+            model_paths = [
+                os.path.expanduser(f"~/llama.cpp/models/{self.model_name}"),
+                os.path.expanduser(f"~/llama.cpp/models/sarvam-1.bin"),
+                os.path.expanduser("~/llama.cpp/models/sarvam-1"),
+            ]
+            
+            model_path = None
+            for path in model_paths:
+                if os.path.exists(path):
+                    model_path = path
+                    break
+
+            if not model_path:
+                logger.warning(f"Model not found: {self.model_name}")
+                return f"⚠️ Model '{self.model_name}' not found. Please check your model file."
+
+            logger.info(f"Running: {llama_cmd} -m {model_path}")
 
             # Run llama.cpp
             result = subprocess.run(
-                [llama_cmd, "-m", model_path, "-p", full_prompt, "-n", "100", "--no-mmap"],
+                [llama_cmd, "-m", model_path, "-p", full_prompt, "-n", "150", "--no-mmap", "-c", "512"],
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=120,
+                cwd=os.path.expanduser("~/llama.cpp")
             )
             
             if result.returncode == 0:
-                return result.stdout.strip()
+                response = result.stdout.strip()
+                # Clean up response
+                if "Assistant:" in response:
+                    response = response.split("Assistant:")[-1].strip()
+                return response if response else "I processed your request but have no response."
             else:
                 logger.error(f"llama.cpp error: {result.stderr}")
-                return "LLM error occurred."
+                return f"⚠️ LLM Error: {result.stderr[:100]}"
 
         except subprocess.TimeoutExpired:
-            return "LLM took too long to respond."
+            return "⏱️ LLM took too long to respond. Try again."
         except Exception as e:
             logger.error(f"LLM Error: {e}")
-            return "LLM is currently offline."
+            return f"⚠️ LLM Error: {str(e)[:100]}"
