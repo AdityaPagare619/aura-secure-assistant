@@ -1,19 +1,17 @@
 # Aura Configuration
 
 telegram:
-  bot_token: "YOUR_BOT_TOKEN_HERE"
+  bot_token: "7573691331:AAFTsne004fhKUgQQT6ydRVh6mazfkl7Ks0"
 
 llm:
-  provider: "ollama" # or "mock", "llama-cpp"
-  model_name: "sarvam-1" # Your installed Sarvam model name
-  api_url: "http://localhost:11434"
+  provider: "mock"  # Using mock for now - Ollama not available on Termux without root
+  model_name: "sarvam-1"
 
 agent:
   max_history: 10
   max_iterations: 5
 
-# Security Policy
 security:
   allow_shell: false
   allow_web: false
-  allow_banking: true
+  allow_banking: false
