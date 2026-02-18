@@ -4,8 +4,8 @@ telegram:
   bot_token: "YOUR_BOT_TOKEN_HERE"
 
 llm:
-  provider: "ollama" # or "mock"
-  model_name: "sarvam-1" # or "llama3"
+  provider: "ollama" # or "mock", "llama-cpp"
+  model_name: "sarvam-1" # Your installed Sarvam model name
   api_url: "http://localhost:11434"
 
 agent:
