@@ -21,11 +21,12 @@ class AuraAgent:
         self,
         tools: List[Tool],
         policy_engine: PolicyEngine,
-        llm_provider: str = "ollama",
+        llm_provider: str = "mock",
+        llm_model: str = "sarvam-1",
     ):
         self.tools = {tool.name: tool for tool in tools}
         self.policy = policy_engine
-        self.llm = LLMInterface(provider=llm_provider)
+        self.llm = LLMInterface(provider=llm_provider, model_name=llm_model)
         self.conversation_history = []
 
         # Memory Systems
@@ -45,10 +46,7 @@ Be concise and helpful.
 """
 
     def sanitize_input(self, text: str) -> str:
-        """
-        Sanitize user input to prevent Prompt Injection.
-        """
-        # Remove potential instruction overrides
+        """Sanitize user input to prevent Prompt Injection."""
         patterns = [
             r"ignore previous instructions",
             r"disregard system prompt",
@@ -64,9 +62,7 @@ Be concise and helpful.
         return sanitized
 
     async def process_message(self, user_message: str) -> str:
-        """
-        Main loop: Receive Message -> Think (LLM) -> Act (Tools) -> Respond
-        """
+        """Main loop: Receive Message -> Think (LLM) -> Act (Tools) -> Respond"""
         # 0. Sanitize Input
         safe_message = self.sanitize_input(user_message)
 
@@ -74,28 +70,11 @@ Be concise and helpful.
         self.conversation_history.append({"role": "user", "content": safe_message})
         self.context.add_message("user", safe_message)
 
-        # 2. Generate response (Real LLM)
-        # We switch to real LLM now
+        # 2. Generate response
         context = self.context.get_context_for_llm()
         llm_response_text = await self.llm.generate(safe_message, context)
-
-        # For now, we just use text.
-        # In a full implementation, we would parse tool calls from LLM response (JSON) or use tool calling support.
 
         # Save to memory
         self.context.add_message("assistant", llm_response_text)
 
-        # Note: Tool execution logic is simplified here.
-        # In a real system, we would parse the LLM output for tool calls.
-
-        # Simple rule-based fallback for now (if LLM is not connected)
-        if (
-            "call" in safe_message.lower()
-            and llm_response_text == "Error communicating with LLM."
-        ):
-            # If LLM failed, use fallback
-            llm_response_text = "I can help you make a call. Please confirm."
-
         return llm_response_text
-
-    # Removed blocking _mock_llm_call and replaced with self.llm.generate
