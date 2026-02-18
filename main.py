@@ -27,37 +27,30 @@ def load_config():
     return {}
 
 
-def get_secret(key, config_dict=None, default=None):
-    env_val = os.getenv(key)
-    if env_val:
-        return env_val
-    if config_dict:
-        return config_dict.get(key)
-    return default
-
-
-def create_tools(config):
-    tools = []
-    tools.append(PhoneCallTool())
-    tools.append(WhatsAppTool())
-    return tools
-
-
 def main():
     logger.info("Starting Aura...")
     config = load_config()
+    
+    logger.info(f"Loaded config: {config}")
 
     policy = PolicyEngine()
-    tools = create_tools(config)
+    tools = [PhoneCallTool(), WhatsAppTool()]
 
-    # Get LLM settings
+    # Get LLM settings - properly handle nested config
     llm_config = config.get("llm", {})
-    llm_provider = get_secret("LLM_PROVIDER", llm_config, "mock")
-    llm_model = get_secret("LLM_MODEL", llm_config, "sarvam-1")
+    llm_provider = os.getenv("LLM_PROVIDER", llm_config.get("provider", "mock"))
+    llm_model = os.getenv("LLM_MODEL", llm_config.get("model_name", "sarvam-1"))
+    
+    logger.info(f"LLM: provider={llm_provider}, model={llm_model}")
     
     agent = AuraAgent(tools, policy, llm_provider=llm_provider, llm_model=llm_model)
 
-    bot_token = get_secret("TELEGRAM_BOT_TOKEN", config.get("telegram"))
+    # Get Telegram bot token - properly handle nested config
+    telegram_config = config.get("telegram", {})
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", telegram_config.get("bot_token"))
+    
+    logger.info(f"Bot token: {'SET' if bot_token else 'NOT SET'}")
+    
     if not bot_token:
         logger.error("Telegram bot token not found!")
         return
