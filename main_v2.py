@@ -134,7 +134,6 @@ class AuraV2:
                     "*Commands:*\n"
                     "• /start - Show this message\n"
                     "• /status - Check system status\n"
-"
                     "• /stop - Stop the bot\n\n"
                     "*Features:*\n"
                     "• Answer calls after 20s\n"
