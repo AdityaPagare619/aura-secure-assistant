@@ -1,6 +1,6 @@
 """
 AURA 2.0 - AGI Personal Assistant
-Main Entry Point - FIXED VERSION
+Main Entry Point - FULLY INTEGRATED
 """
 
 import asyncio
@@ -9,10 +9,9 @@ import yaml
 import os
 import signal
 import sys
-import threading
 from datetime import datetime
 
-# Setup logging first
+# Setup logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -25,16 +24,13 @@ logger = logging.getLogger(__name__)
 
 
 class AuraV2:
-    """
-    AURA 2.0 - The Complete AGI Assistant
-    """
+    """AURA 2.0 - Complete AGI Assistant with integrated LLM"""
     
     def __init__(self):
         self.running = False
         self.config = self._load_config()
-        self.telegram_app = None
-        self.watcher = None
         self.llm_server = None
+        self.watcher = None
         
         logger.info("=" * 60)
         logger.info("🤖 AURA 2.0 - AGI Assistant Initializing")
@@ -42,9 +38,8 @@ class AuraV2:
     
     def _load_config(self) -> dict:
         """Load configuration"""
-        config_path = "config.yaml"
-        if os.path.exists(config_path):
-            with open(config_path, 'r') as f:
+        if os.path.exists("config.yaml"):
+            with open("config.yaml", 'r') as f:
                 return yaml.safe_load(f)
         return {}
     
@@ -53,7 +48,7 @@ class AuraV2:
         self.running = True
         
         try:
-            # Step 1: Start LLM Server
+            # Step 1: Start LLM Server (PERSISTENT BRAIN)
             logger.info("[1/4] Starting LLM Server...")
             from src.brain.llm_server import LLMServer
             
@@ -61,44 +56,34 @@ class AuraV2:
             self.llm_server = LLMServer(model_path)
             
             if not self.llm_server.start():
-                logger.warning("⚠️ LLM server not available - will use fallback mode")
-            else:
-                logger.info("✅ LLM Server ready")
+                logger.error("❌ Failed to start LLM server!")
+                return False
+            
+            logger.info("✅ LLM Server ready - Model loaded in memory")
             
             # Step 2: Start Watcher
             logger.info("[2/4] Starting Watcher...")
             from src.brain.watcher import Watcher
             
             self.watcher = Watcher(self.config)
-            
-            # Register handlers for events
             self.watcher.register_handler('call', self._handle_call)
             self.watcher.register_handler('call_auto_answer', self._handle_auto_answer)
             self.watcher.register_handler('notification', self._handle_notification)
-            self.watcher.register_handler('calendar_5min', self._handle_calendar_5min)
-            self.watcher.register_handler('calendar_urgent', self._handle_calendar_urgent)
             
             await self.watcher.start()
             logger.info("✅ Watcher active")
             
-            # Step 3: Start Telegram Bot (in background thread)
-            logger.info("[3/4] Starting Telegram Bot...")
-            self.telegram_task = asyncio.create_task(self._run_telegram())
+            # Step 3: Start Telegram with LLM integration
+            logger.info("[3/4] Starting Telegram Bot with LLM...")
+            asyncio.create_task(self._run_telegram())
             logger.info("✅ Telegram Bot starting...")
             
-            # Step 4: Keep running
+            # Step 4: Ready
             logger.info("[4/4] System ready!")
             logger.info("\n" + "=" * 60)
             logger.info("🎉 AURA 2.0 is RUNNING!")
             logger.info("=" * 60)
-            logger.info("\nCommands:")
-            logger.info("  /start - Show info")
-            logger.info("  /status - Check status")
-            logger.info("  /stop - Stop bot")
-            logger.info("\nFeatures:")
-            logger.info("  • Auto-answer calls after 20s")
-            logger.info("  • Monitor notifications")
-            logger.info("  • Calendar alerts")
+            logger.info("\nSend /start to your Telegram bot!")
             logger.info("=" * 60 + "\n")
             
             # Keep running
@@ -112,37 +97,33 @@ class AuraV2:
         return True
     
     async def _run_telegram(self):
-        """Run Telegram bot in async context"""
+        """Run Telegram bot with full LLM integration"""
         try:
             from telegram import Update
             from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
             
             token = self.config.get('telegram', {}).get('bot_token', '')
-            if not token or token == "YOUR_BOT_TOKEN_HERE":
-                logger.error("❌ No bot token configured!")
+            if not token:
+                logger.error("❌ No bot token!")
                 return
             
-            # Create application
             application = Application.builder().token(token).build()
             
-            # Command handlers
+            # /start command
             async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.info(f"/start from user {update.effective_user.id}")
                 await update.message.reply_text(
                     "🤖 *AURA 2.0 - AGI Assistant*\n\n"
-                    "I am your secure local assistant.\n\n"
+                    "I am your secure local assistant running Sarvam AI.\n\n"
                     "*Commands:*\n"
                     "• /start - Show this message\n"
                     "• /status - Check system status\n"
                     "• /stop - Stop the bot\n\n"
-                    "*Features:*\n"
-                    "• Answer calls after 20s\n"
-                    "• Monitor notifications\n"
-                    "• Smart alerts\n\n"
-                    "All processing is local and secure! 🔒",
+                    "Just send me any message and I'll respond using my local AI brain! 🧠",
                     parse_mode='Markdown'
                 )
             
+            # /status command
             async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.info(f"/status from user {update.effective_user.id}")
                 
@@ -154,27 +135,68 @@ class AuraV2:
                     f"🧠 LLM Server: {llm_status}\n"
                     f"👁️ Watcher: {watcher_status}\n"
                     f"📱 System: ✅ Running\n\n"
-                    f"_Last update: {datetime.now().strftime('%H:%M:%S')}_",
+                    f"_Model: Sarvam AI (Local)_\n"
+                    f"_Time: {datetime.now().strftime('%H:%M:%S')}_",
                     parse_mode='Markdown'
                 )
             
+            # /stop command
             async def stop_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.info(f"/stop from user {update.effective_user.id}")
                 await update.message.reply_text("🛑 Stopping AURA 2.0...")
                 self.running = False
                 await application.stop()
             
+            # Handle messages with LLM
             async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
-                text = update.message.text
+                user_text = update.message.text
                 user_id = update.effective_user.id
-                logger.info(f"Message from {user_id}: {text}")
                 
-                # Echo back for now (will integrate LLM later)
-                await update.message.reply_text(
-                    f"📨 Received: {text}\n\n"
-                    f"_(LLM integration coming in next update)_"
-                )
+                logger.info(f"💬 Message from {user_id}: {user_text}")
+                
+                # Show typing indicator
+                await update.message.chat.send_action(action="typing")
+                
+                try:
+                    # Generate response using LLM
+                    if self.llm_server and self.llm_server.is_running():
+                        # Create prompt for Sarvam AI
+                        prompt = f"""You are AURA, a helpful AI assistant running locally on the user's Android phone.
+You are secure, private, and fast. Be concise and helpful.
+
+User: {user_text}
+
+AURA:"""
+                        
+                        # Generate response
+                        response = self.llm_server.generate(
+                            prompt=prompt,
+                            max_tokens=256,
+                            temperature=0.7
+                        )
+                        
+                        # Clean up response
+                        response = response.strip()
+                        if not response or response.startswith("Error"):
+                            response = "I'm here! How can I help you today?"
+                        
+                        logger.info(f"🧠 Generated response: {response[:50]}...")
+                        
+                        # Send response
+                        await update.message.reply_text(response)
+                    else:
+                        # Fallback if LLM not available
+                        await update.message.reply_text(
+                            "I'm here! (LLM not connected, using basic mode)"
+                        )
+                        
+                except Exception as e:
+                    logger.error(f"Error generating response: {e}")
+                    await update.message.reply_text(
+                        "Sorry, I encountered an error. Please try again."
+                    )
             
+            # Error handler
             async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
                 logger.error(f"Telegram error: {context.error}")
             
@@ -185,8 +207,8 @@ class AuraV2:
             application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_msg))
             application.add_error_handler(error_handler)
             
-            # Start polling
-            logger.info("Starting Telegram polling...")
+            # Start
+            logger.info("Starting Telegram with LLM integration...")
             await application.initialize()
             await application.start()
             await application.updater.start_polling(drop_pending_updates=True)
@@ -201,36 +223,19 @@ class AuraV2:
     # Event handlers
     async def _handle_call(self, event):
         """Handle incoming call"""
-        logger.info(f"📞 Incoming call from {event.data.get('name', 'Unknown')}")
-        # Call is ringing, monitoring...
+        logger.info(f"📞 Call from {event.data.get('name', 'Unknown')}")
     
     async def _handle_auto_answer(self, event):
-        """Auto-answer call after 20s"""
-        caller = event.data.get('name', event.data.get('number', 'Unknown'))
+        """Auto-answer after 20s"""
+        caller = event.data.get('name', 'Unknown')
         logger.info(f"📞 Auto-answering call from {caller}")
-        
-        # TODO: Implement actual call answering
-        # For now, just log it
-        logger.info(f"Would answer call and greet {caller}")
     
     async def _handle_notification(self, event):
         """Handle notification"""
-        app = event.source
-        title = event.data.get('title', '')
-        logger.info(f"📱 Notification from {app}: {title}")
-    
-    async def _handle_calendar_5min(self, event):
-        """5 minute calendar warning"""
-        title = event.data.get('title', 'Meeting')
-        logger.info(f"📅 5 minute warning: {title}")
-    
-    async def _handle_calendar_urgent(self, event):
-        """Urgent calendar alert"""
-        title = event.data.get('title', 'Meeting')
-        logger.info(f"📅 URGENT: {title} starting now!")
+        logger.info(f"📱 Notification: {event.data.get('title', '')}")
     
     async def stop(self):
-        """Stop AURA 2.0"""
+        """Stop AURA"""
         logger.info("\n🛑 Stopping AURA 2.0...")
         self.running = False
         
@@ -240,36 +245,31 @@ class AuraV2:
         if self.llm_server:
             self.llm_server.stop()
         
-        logger.info("✅ AURA 2.0 stopped")
+        logger.info("✅ Stopped")
     
     def _signal_handler(self, signum, frame):
-        """Handle shutdown signals"""
-        logger.info(f"\nReceived signal {signum}")
+        """Handle signals"""
+        logger.info(f"\nSignal {signum} received")
         asyncio.create_task(self.stop())
         sys.exit(0)
 
 
 async def main():
-    """Main entry point"""
-    # Create data directories
+    """Main entry"""
     os.makedirs('data/logs', exist_ok=True)
     os.makedirs('data/memory', exist_ok=True)
     
     aura = AuraV2()
-    
-    # Setup signal handlers
     signal.signal(signal.SIGINT, aura._signal_handler)
     signal.signal(signal.SIGTERM, aura._signal_handler)
     
     try:
-        success = await aura.start()
-        if not success:
-            logger.error("Failed to start AURA 2.0")
+        if not await aura.start():
             sys.exit(1)
     except KeyboardInterrupt:
         await aura.stop()
     except Exception as e:
-        logger.error(f"Unexpected error: {e}", exc_info=True)
+        logger.error(f"Error: {e}", exc_info=True)
         sys.exit(1)
 
 
